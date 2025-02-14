@@ -273,7 +273,6 @@ static constexpr std::array<uint16_t, SAMPLES_FOR_PREDEFINED_WAVE> getSine() {
     float sample = (1 + sin((float)i * step)) * (float)65535 / 2.0;
     a[i] = (uint16_t)sample;
   }
-  
   return a;
 }
 

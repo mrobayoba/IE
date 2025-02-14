@@ -1,12 +1,10 @@
-#ifndef ARDUINO_ANALOG_WAVE_MOD
-#define ARDUINO_ANALOG_WAVE_MOD
+#ifndef ARDUINO_ANALOG_WAVE
+#define ARDUINO_ANALOG_WAVE
 
 #include "FspTimer.h"
 #include "r_dtc.h"
 
-#define SAMPLES_FOR_PREDEFINED_WAVE 200 // 10 to 200 samples (230 max but it does not work well)
-                                        // If 200 samples are set, the max freq is 1200hz
-
+#define SAMPLES_FOR_PREDEFINED_WAVE 200
 #define WAVE_PRIORITY  1
 
 class analogWave {
