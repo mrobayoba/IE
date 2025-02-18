@@ -1,7 +1,12 @@
 #include <math.h>
-#include "freertos/FreeRTOS.h"
+
+#include "driver/gpio.h"
+#include "esp_adc/adc_oneshot.h"
 #include "soc/dac_channel.h"
 #include "driver/dac_continuous.h"
+
+#include "freertos/FreeRTOS.h"
+
 #include "esp_check.h"
 
 /**
@@ -19,6 +24,11 @@
 
 #define DAC_AMPLITUDE 255
 #define PI 3.14159
+
+/**
+ *ADJUST THIS PARAMETER AT LEAST 10 TIMES GREATER THAN SIGNAL FREQ TO READ
+ */
+#define DELAY_US 100
 
 dac_continuous_handle_t cont_handle;
 
@@ -56,26 +66,54 @@ static void generate_wave(uint8_t *array)
     }
 }
 
+/* General states*/
+#define LOW 0
+#define HIGH 1
+#define RESET LOW
+#define SET HIGH
+
+/* Peripherals Handlers*/
+adc_oneshot_unit_handle_t adc2_handler;
+
+/*Callbacks*/
+/* General Functions*/
+static double ADC_conversion(int rawVal){
+    return (double) rawVal * 3300.0 / 1024;
+}
+
 void initSys(void);
 
 void app_main(void)
 {
+    int rawData = 0; // For ADC data acquisition
+
     uint8_t waveSamples[sampling_rate]; // Used to store AM wave values
 
     generate_wave(waveSamples);
 
     initSys();
 
-    // while (1)
-    // {
-        /* The wave in the buffer will be converted cyclically */
+    printf("Initialized.\n");
+    
+    /* *
+     * The wave in the buffer will be converted cyclically, there is no need to manage this function.
+     * */
         ESP_ERROR_CHECK(dac_continuous_write_cyclically(cont_handle, waveSamples, (size_t) sampling_rate-1, NULL));
-    // }
+
+    /**
+     * Infinite loop
+     */
+    while(1){
+        // For ADC readings and serial data transmission
+        adc_oneshot_read(adc2_handler,ADC_CHANNEL_4,&rawData);
+        printf("%4.2f\n",ADC_conversion(rawData));
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
 }
 
 void initSys(void)
 {
-
+    /*config DACs*/
     dac_continuous_config_t cont_cfg = {
         .chan_mask = DAC_CHANNEL_MASK_CH0,
         .desc_num = 8,
@@ -88,4 +126,22 @@ void initSys(void)
     ESP_ERROR_CHECK(dac_continuous_new_channels(&cont_cfg, &cont_handle));
     /* Enable the channels in the group */
     ESP_ERROR_CHECK(dac_continuous_enable(cont_handle));
+
+    /*config ADCs*/
+    /**
+     * Look for pinout before switching GPIO for ADC reading
+     * (ADC_UNIT_2, ADC_CHANNEL_4) = GPIO13
+     */
+    adc_oneshot_unit_init_cfg_t adcConfig = {
+        .unit_id = ADC_UNIT_2,
+        .clk_src = ADC_RTC_CLK_SRC_DEFAULT,
+        .ulp_mode = ADC_ULP_MODE_DISABLE,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&adcConfig,&adc2_handler)); 
+
+    adc_oneshot_chan_cfg_t adcChannelConfig = {
+        .atten = ADC_ATTEN_DB_12, // 3V3 max input voltage
+        .bitwidth = ADC_BITWIDTH_10, // 10-bit resolution (~3mV)
+    };
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc2_handler,ADC_CHANNEL_4, &adcChannelConfig));
 }
